@@ -1,4 +1,4 @@
-// data.js
+/// data.js
 
 // How many shards you currently own for the *initial* tracked Sinner.
 export const initialShardsOwned = 0;
