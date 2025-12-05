@@ -1,4 +1,4 @@
-// main.js
+/// main.js
 import {
   initialShardsOwned,
   defaultTargetShards,
