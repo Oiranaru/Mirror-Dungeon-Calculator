@@ -375,7 +375,7 @@ function render() {
     if (runsLeftTheoCeilEl) runsLeftTheoCeilEl.textContent = "0";
     if (modulesNeededEl) modulesNeededEl.textContent = "0";
   } else {
-    const theoRuns = remaining / SHARDS_PER_RUN_EXPECTED;
+    const theoRuns = remaining / expectedShardsPerRun;
     const theoRunsCeil = Math.ceil(theoRuns);
     const modulesNeeded = theoRunsCeil * 5; // 5 modules per run
 
