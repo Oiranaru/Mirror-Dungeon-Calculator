@@ -108,6 +108,7 @@ const runsLeftTheoEl = document.getElementById("runs-left-theoretical");
 const runsLeftTheoCeilEl = document.getElementById("runs-left-theoretical-ceil");
 const actualAvgEl = document.getElementById("actual-avg-per-run");
 const runsLeftActualEl = document.getElementById("runs-left-actual");
+const modulesNeededEl = document.getElementById("modules-needed");
 
 const form = document.getElementById("add-run-form");
 const shardsThisRunInput = document.getElementById("shards-this-run");
@@ -369,14 +370,20 @@ function render() {
     avgPerRunEl.textContent = expectedShardsPerRun.toFixed(1);
   }
 
-  if (remaining === 0) {
+    if (remaining === 0) {
     if (runsLeftTheoEl) runsLeftTheoEl.textContent = "0 (target reached)";
     if (runsLeftTheoCeilEl) runsLeftTheoCeilEl.textContent = "0";
+    if (modulesNeededEl) modulesNeededEl.textContent = "0";
   } else {
-    const theoRuns = remaining / expectedShardsPerRun;
+    const theoRuns = remaining / SHARDS_PER_RUN_EXPECTED;
+    const theoRunsCeil = Math.ceil(theoRuns);
+    const modulesNeeded = theoRunsCeil * 5; // 5 modules per run
+
     if (runsLeftTheoEl) runsLeftTheoEl.textContent = theoRuns.toFixed(2);
     if (runsLeftTheoCeilEl)
-      runsLeftTheoCeilEl.textContent = Math.ceil(theoRuns).toString();
+      runsLeftTheoCeilEl.textContent = theoRunsCeil.toString();
+    if (modulesNeededEl)
+      modulesNeededEl.textContent = modulesNeeded.toString();
   }
 
   // Actual projection based on real run data
