@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mirror Dungeon Shard Calculator</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app">
+    <h1>Mirror Dungeon Shard Calculator</h1>
+
+    <!-- Progress + active Sinner -->
+    <section class="card">
+      <h2>Progress</h2>
+
+      <div class="sinner-selector">
+        <label for="active-sinner" class="label">
+          Tracking Sinner
+        </label>
+        <select id="active-sinner"></select>
+      </div>
+
+      <div class="stats-grid">
+        <div>
+          <span class="label">Current shards (for selected Sinner)</span>
+          <span id="current-shards" class="value">0</span>
+        </div>
+        <div>
+          <span class="label">Target shards</span>
+          <span id="target-shards" class="value">400</span>
+        </div>
+        <div>
+          <span class="label">Remaining shards</span>
+          <span id="remaining-shards" class="value">0</span>
+        </div>
+        <div>
+          <span class="label">Runs completed (tracked)</span>
+          <span id="runs-completed" class="value">0</span>
+        </div>
+        <div>
+          <span class="label">Bonus shards applied (this reset)</span>
+          <span id="bonus-shards-total" class="value">0</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Run estimates -->
+    <section class="card">
+      <h2>Run estimates</h2>
+      <p class="explanation">
+        Based on an average of <span id="avg-per-run">18</span> shards per run
+        (9 boxes × 2 shards each on average).
+      </p>
+      <div class="stats-grid">
+        <div>
+          <span class="label">Theoretical runs left (average)</span>
+          <span id="runs-left-theoretical" class="value">0</span>
+        </div>
+        <div>
+          <span class="label">Theoretical runs left (rounded up)</span>
+          <span id="runs-left-theoretical-ceil" class="value">0</span>
+        </div>
+        <div>
+          <span class="label">Your actual avg shards / run</span>
+          <span id="actual-avg-per-run" class="value">–</span>
+        </div>
+        <div>
+          <span class="label">Runs left using your actual avg</span>
+          <span id="runs-left-actual" class="value">–</span>
+        </div>
+      </div>
+      <p class="note">
+        “Theoretical” uses the 18 shards/run expectation.<br />
+        “Actual” uses your real results so far (what you type in below) for the selected Sinner.
+      </p>
+    </section>
+
+    <!-- Unopened yellow boxes -->
+    <section class="card">
+      <h2>Unopened yellow shard boxes</h2>
+      <p class="explanation">
+        These boxes can be opened for any Sinner. Each box gives 1–3 shards,
+        averaging about 2 shards. The calculator will show how many boxes each
+        Sinner would need on average to hit their goals.
+      </p>
+
+      <form id="boxes-form">
+        <label for="unopened-boxes-input">
+          Number of unopened yellow boxes:
+        </label>
+        <input
+          id="unopened-boxes-input"
+          type="number"
+          min="0"
+          step="1"
+          required
+        />
+        <button type="submit">Save box count</button>
+        <p id="boxes-error" class="error"></p>
+      </form>
+
+      <p class="note">
+        Approximate shards from these boxes:
+        <span id="boxes-expected-shards">0</span>
+      </p>
+    </section>
+
+    <!-- Add run + weekly bonus -->
+    <section class="card">
+      <h2>Add a completed run</h2>
+      <form id="add-run-form">
+        <label for="shards-this-run">
+          Shards gained from this MD run (total from the 9 boxes):
+        </label>
+        <input
+          id="shards-this-run"
+          type="number"
+          min="0"
+          step="1"
+          required
+        />
+        <button type="submit">Add run</button>
+        <p id="form-error" class="error"></p>
+      </form>
+
+      <button id="reset-button" class="secondary">
+        Reset progression (use values from data.js)
+      </button>
+
+      <hr class="divider" />
+
+      <h2>Apply weekly bonus</h2>
+      <p class="explanation">
+        When you cash in all three weekly bonuses (63 boxes), total up the shards
+        you got for the currently selected Sinner and enter that number here.
+        Expected average is about 126 shards (63 boxes × 2).
+      </p>
+
+      <form id="bonus-form">
+        <label for="bonus-shards">
+          Total shards gained from weekly bonus (all 63 boxes):
+        </label>
+        <input
+          id="bonus-shards"
+          type="number"
+          min="0"
+          step="1"
+          required
+        />
+        <button type="submit">Apply weekly bonus</button>
+        <p id="bonus-error" class="error"></p>
+      </form>
+    </section>
+
+    <!-- Collapsible per-Sinner shard + goals editor -->
+    <section class="card">
+      <details id="sinner-shards-panel">
+        <summary>Current shards & goals per Sinner (click to expand/collapse)</summary>
+
+        <p class="explanation">
+          Set how many 000 IDs/EGOs and 00 IDs you want for each Sinner.
+          The calculator turns this into shard targets automatically
+          (000 ID/EGO: 400 shards, 00 ID: 150 shards each).
+        </p>
+
+        <form id="sinner-shards-form">
+          <div id="sinner-shards-grid" class="stats-grid">
+            <!-- Inputs generated by JS -->
+          </div>
+          <button type="submit">Save values</button>
+          <p id="sinner-shards-error" class="error"></p>
+        </form>
+      </details>
+    </section>
+
+    <!-- Overview per Sinner -->
+    <section class="card">
+      <h2>Overview per Sinner</h2>
+      <p class="explanation">
+        Uses the average of 18 shards per run (and 2 shards per box) to estimate
+        how many runs and boxes are needed for each Sinner's goals.
+      </p>
+      <div id="overview-grid" class="overview-grid">
+        <!-- Filled by JS -->
+      </div>
+    </section>
+
+    <!-- Run history -->
+    <section class="card">
+      <h2>Run history (this session)</h2>
+      <ul id="run-history" class="history-list">
+        <!-- Filled by JS -->
+      </ul>
+    </section>
+  </main>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>

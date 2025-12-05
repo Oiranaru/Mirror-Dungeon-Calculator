@@ -1,0 +1,324 @@
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  margin: 0;
+  padding: 0;
+  background: #0f172a;
+  color: #e5e7eb;
+}
+
+.app {
+  max-width: 900px;
+  margin: 2rem auto;
+  padding: 0 1rem 3rem;
+}
+
+h1 {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.card {
+  background: #020617;
+  border-radius: 1rem;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  border: 1px solid #1e293b;
+}
+
+h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.label {
+  display: block;
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin-bottom: 0.25rem;
+}
+
+.value {
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.explanation,
+.note {
+  font-size: 0.9rem;
+  color: #9ca3af;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+input[type="number"] {
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid #4b5563;
+  background: #020617;
+  color: #e5e7eb;
+}
+
+input[type="number"]:focus {
+  outline: none;
+  border-color: #22c55e;
+  box-shadow: 0 0 0 1px #22c55e;
+}
+
+button {
+  align-self: flex-start;
+  padding: 0.5rem 1rem;
+  border-radius: 0.75rem;
+  border: none;
+  background: #22c55e;
+  color: #022c22;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button.secondary {
+  background: transparent;
+  border: 1px solid #4b5563;
+  color: #e5e7eb;
+  margin-top: 0.75rem;
+}
+
+button:hover {
+  filter: brightness(1.1);
+}
+
+.error {
+  color: #f97373;
+  font-size: 0.85rem;
+  min-height: 1em;
+}
+
+.history-list {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.5rem 0 0;
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: 0.9rem;
+}
+
+.history-list li {
+  padding: 0.25rem 0;
+  border-bottom: 1px solid #111827;
+}
+.divider {
+  border: none;
+  border-top: 1px solid #1f2933;
+  margin: 1rem 0;
+}
+/* Existing styles from before (body, .app, .card, etc.) stay as they are */
+
+/* Sinner selector */
+.sinner-selector {
+  margin-bottom: 0.75rem;
+}
+
+.sinner-selector select {
+  margin-top: 0.25rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.5rem;
+  border: 1px solid #4b5563;
+  background: #020617;
+  color: #e5e7eb;
+}
+
+.sinner-selector select:focus {
+  outline: none;
+  border-color: #22c55e;
+  box-shadow: 0 0 0 1px #22c55e;
+}
+
+/* Divider already added earlier */
+.divider {
+  border: none;
+  border-top: 1px solid #1f2933;
+  margin: 1rem 0;
+}
+
+/* Collapsible <details> styling */
+details summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+details summary::-webkit-details-marker {
+  display: none;
+}
+
+details summary::before {
+  content: "▶ ";
+  display: inline-block;
+  transform: translateY(1px);
+  transition: transform 0.15s ease-out;
+}
+
+details[open] summary::before {
+  transform: rotate(90deg) translateY(-1px);
+}
+
+details > *:not(summary) {
+  margin-top: 0.5rem;
+}
+/* Existing body, .app, .card, .stats-grid, .label, .value, etc. stay the same */
+
+/* Sinner selector */
+.sinner-selector {
+  margin-bottom: 0.75rem;
+}
+
+.sinner-selector select {
+  margin-top: 0.25rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.5rem;
+  border: 1px solid #4b5563;
+  background: #020617;
+  color: #e5e7eb;
+}
+
+.sinner-selector select:focus {
+  outline: none;
+  border-color: #22c55e;
+  box-shadow: 0 0 0 1px #22c55e;
+}
+
+/* Divider */
+.divider {
+  border: none;
+  border-top: 1px solid #1f2933;
+  margin: 1rem 0;
+}
+
+/* Collapsible <details> styling */
+details summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+details summary::-webkit-details-marker {
+  display: none;
+}
+
+details summary::before {
+  content: "▶ ";
+  display: inline-block;
+  transform: translateY(1px);
+  transition: transform 0.15s ease-out;
+}
+
+details[open] summary::before {
+  transform: rotate(90deg) translateY(-1px);
+}
+
+details > *:not(summary) {
+  margin-top: 0.5rem;
+}
+
+/* Per-Sinner shard + target rows */
+.sinner-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.sinner-field {
+  flex: 1;
+}
+
+.sub-label {
+  display: block;
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin-bottom: 0.15rem;
+}
+
+.sinner-field input[type="number"] {
+  width: 100%;
+}
+
+/* Overview grid */
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.overview-item {
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.75rem;
+  border: 1px solid #1f2937;
+  background: #020617;
+  font-size: 0.85rem;
+}
+
+.overview-name {
+  font-weight: 600;
+  margin-bottom: 0.15rem;
+}
+
+.overview-line {
+  display: block;
+  color: #9ca3af;
+}
+/* Per-Sinner grid inside the collapsible panel */
+#sinner-shards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+/* Each Sinner block */
+.sinner-goal-card {
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.75rem;
+  border: 1px solid #1f2937;
+  background: #020617;
+}
+
+/* Slightly bolder name inside the card */
+.sinner-goal-card .label {
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+/* Row of fields (Shards / 000 / 00) */
+.sinner-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Individual field */
+.sinner-field {
+  flex: 1 1 90px;
+  min-width: 90px;
+}
+
+.sinner-field input[type="number"] {
+  width: 100%;
+}
+
+/* Smaller sub-labels (Shards / 000 IDs / 00 IDs) */
+.sub-label {
+  display: block;
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin-bottom: 0.15rem;
+}
