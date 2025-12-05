@@ -101,6 +101,7 @@ const targetEl = document.getElementById("target-shards");
 const remainingEl = document.getElementById("remaining-shards");
 const runsCompletedEl = document.getElementById("runs-completed");
 const bonusTotalEl = document.getElementById("bonus-shards-total");
+const boxesNeededTopEl = document.getElementById("boxes-needed-avg-top");
 
 const avgPerRunEl = document.getElementById("avg-per-run");
 const runsLeftTheoEl = document.getElementById("runs-left-theoretical");
@@ -321,6 +322,15 @@ function render() {
     defaultTargetShards;
 
   const remaining = Math.max(currentTarget - currentForActive, 0);
+
+    // Boxes needed (avg) for selected Sinner (ignores stash)
+  let boxesNeededTop = 0;
+  if (remaining > 0) {
+    boxesNeededTop = remaining / avgShardsPerBox; // avg 2 shards per box
+  }
+  if (boxesNeededTopEl) {
+    boxesNeededTopEl.textContent = boxesNeededTop.toFixed(1);
+  }
 
   if (targetEl) targetEl.textContent = currentTarget;
   if (currentEl) currentEl.textContent = currentForActive;
