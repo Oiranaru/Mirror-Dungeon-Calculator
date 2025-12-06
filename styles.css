@@ -322,3 +322,191 @@ details > *:not(summary) {
   color: #9ca3af;
   margin-bottom: 0.15rem;
 }
+#id-ego-planner-root {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.planner-sinner {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.planner-sinner-header {
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: none;
+  color: inherit;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+
+.planner-sinner-body {
+  padding: 0.5rem 0.75rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.planner-sinner-body.hidden {
+  display: none;
+}
+
+.planner-section-title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  opacity: 0.7;
+  margin: 0.25rem 0;
+}
+
+.planner-entry {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.planner-entry:last-child {
+  border-bottom: none;
+}
+
+.planner-entry-thumb {
+  width: 80px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.planner-entry-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.planner-entry-rarity {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.planner-entry-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+}
+
+.planner-entry-controls label {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+/* --- ID/EGO thumbnails (top tracked list + planner) --- */
+
+.goal-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid #1f2937;
+}
+
+.goal-item-main {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.goal-item-image,
+.planner-item-image {
+  width: 140px;      /* change this to taste */
+  height: 140px;     /* or 56px/64px if you want smaller */
+  object-fit: cover;
+  border-radius: 0.5rem;
+  flex-shrink: 0;
+}
+
+.goal-item-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.goal-item-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.goal-item-meta {
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+/* Extra spacing between ID/EGO planner rows so
+   Own/Goal clearly belong to the image above */
+
+.planner-entry,
+.planner-item-row {
+  margin-bottom: 1rem;                 /* space between rows */
+  padding-bottom: 0.5rem;              /* breathing room inside row */
+  border-bottom: 1px solid #1f2937;    /* subtle divider line */
+}
+
+/* Keep the checkbox labels tidy */
+.planner-entry-controls label,
+.planner-item-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+/* ID & EGO Planner card tweaks */
+.id-ego-planner {
+  margin-top: 1rem;
+}
+
+.id-ego-planner h2 {
+  margin-top: 0;
+}
+
+.id-ego-planner p {
+  margin-bottom: 0.75rem;
+}
+/* ID & EGO planner search bar */
+.id-ego-search {
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.id-ego-search .label {
+  margin-bottom: 0.25rem;
+}
+
+.id-ego-search input[type="text"] {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid #4b5563;
+  background: #020617;
+  color: #e5e7eb;
+}
+
+.id-ego-search input[type="text"]:focus {
+  outline: none;
+  border-color: #22c55e;
+  box-shadow: 0 0 0 1px #22c55e;
+}
+
+/* Brief highlight when a search result is focused */
+.planner-entry-highlight {
+  outline: 2px solid #22c55e;
+  border-radius: 6px;
+}

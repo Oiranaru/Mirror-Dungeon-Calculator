@@ -1,4 +1,5 @@
-/// main.js
+// main.js
+
 import {
   initialShardsOwned,
   defaultTargetShards,
@@ -6,7 +7,12 @@ import {
   boxesPerRun,
   costPer000,
   costPer00,
+  sinners,
   sinnerNames,
+  sinnerSlugByName,
+  sinnerIdentities,
+  sinnerEgos,
+  shardCostByRarity,
   defaultActiveSinner,
 } from "./data.js";
 
@@ -14,7 +20,108 @@ const STORAGE_KEY = "mdShardCalculatorState_v1";
 
 const expectedShardsPerRun = avgShardsPerBox * boxesPerRun; // 2 × 9 = 18
 
-// ----- State helpers -----
+// ---------------------------------------------------------
+// ID/EGO state helpers (new system)
+// ---------------------------------------------------------
+
+// Build a default owned/goal/enabled record for every ID & EGO
+function createEmptyIdEgoState() {
+  const result = {};
+  sinners.forEach(({ id: sinnerId }) => {
+    const items = [
+      ...(sinnerIdentities[sinnerId] || []),
+      ...(sinnerEgos[sinnerId] || []),
+    ];
+    result[sinnerId] = {};
+    items.forEach((item) => {
+      result[sinnerId][item.id] = {
+        owned: false,  // whether you already own this ID/EGO
+        goal: false,   // whether this ID/EGO is a goal
+        enabled: true, // whether to include this goal in shard target calculations
+      };
+    });
+  });
+  return result;
+}
+
+// Merge saved idEgoState with the fresh default structure
+function mergeIdEgoState(saved, base) {
+  const result = { ...base };
+  if (!saved) return result;
+
+  Object.entries(saved).forEach(([sinnerId, items]) => {
+    if (!result[sinnerId]) result[sinnerId] = {};
+    Object.entries(items || {}).forEach(([itemId, itemState]) => {
+      const owned = itemState.owned ?? itemState.own ?? false;
+      const goal = !!itemState.goal;
+      const enabled = itemState.enabled === false ? false : true;
+      result[sinnerId][itemId] = { owned, goal, enabled };
+    });
+  });
+
+  return result;
+}
+
+function getShardCostForItem(item) {
+  const cost = shardCostByRarity[item.rarity];
+  return typeof cost === "number" ? cost : 0;
+}
+
+// Recompute sinnerTargets based on all goal items that are currently enabled
+function recomputeAllTargetsFromGoals(currentState) {
+  if (!currentState.idEgoState) return;
+
+  sinnerNames.forEach((name) => {
+    const sinnerId = sinnerSlugByName[name];
+    if (!sinnerId) return;
+
+    const items = [
+      ...(sinnerIdentities[sinnerId] || []),
+      ...(sinnerEgos[sinnerId] || []),
+    ];
+
+    let anyGoals = false;
+    let totalFromGoals = 0;
+
+    items.forEach((item) => {
+      const itemState = currentState.idEgoState?.[sinnerId]?.[item.id];
+      if (!itemState || !itemState.goal) return;
+
+      anyGoals = true;
+      const enabled =
+        itemState.enabled === undefined ? true : itemState.enabled;
+      if (!enabled) return;
+
+      totalFromGoals += getShardCostForItem(item);
+    });
+
+    // If there are goal items for this Sinner, override the manual target
+    if (anyGoals) {
+      currentState.sinnerTargets[name] = totalFromGoals;
+    }
+  });
+}
+
+// ----- Helpers for Sinner + item data -----
+
+function getSinnerSlugFromName(name) {
+  return sinnerSlugByName[name];
+}
+
+function getAllItemsForSinnerByName(name) {
+  const slug = getSinnerSlugFromName(name);
+  if (!slug) return [];
+  const ids = sinnerIdentities[slug] || [];
+  const egos = sinnerEgos[slug] || [];
+  return [
+    ...ids.map((item) => ({ ...item, kind: "ID" })),
+    ...egos.map((item) => ({ ...item, kind: "EGO" })),
+  ];
+}
+
+// ---------------------------------------------------------
+// State helpers
+// ---------------------------------------------------------
 
 function createInitialState() {
   const safeDefault = sinnerNames.includes(defaultActiveSinner)
@@ -28,7 +135,7 @@ function createInitialState() {
   sinnerNames.forEach((name) => {
     sinnerShards[name] = 0;
 
-    // Default goal: 1×000 ID/EGO (400 shards), 0×00 IDs
+    // Simple default: 1×000 ID/EGO (400 shards) – overridden once planner is used.
     sinnerGoals[name] = { count000: 1, count00: 0 };
     sinnerTargets[name] =
       sinnerGoals[name].count000 * costPer000 +
@@ -38,11 +145,14 @@ function createInitialState() {
   // Use initialShardsOwned for the default active Sinner
   sinnerShards[safeDefault] = initialShardsOwned;
 
+  const idEgoState = createEmptyIdEgoState();
+
   return {
     activeSinner: safeDefault,
     sinnerShards,
     sinnerTargets,
     sinnerGoals,
+    idEgoState,
     runsCompleted: 0,
     totalShardsGained: 0, // from MD runs only
     bonusShardsTotal: 0,  // from weekly bonuses
@@ -70,12 +180,16 @@ function loadState() {
       sinnerShards: parsed.sinnerShards || base.sinnerShards,
       sinnerTargets: parsed.sinnerTargets || base.sinnerTargets,
       sinnerGoals: parsed.sinnerGoals || base.sinnerGoals,
+      idEgoState: mergeIdEgoState(parsed.idEgoState, base.idEgoState),
       activeSinner: parsed.activeSinner || base.activeSinner,
       unopenedBoxes:
         typeof parsed.unopenedBoxes === "number" && parsed.unopenedBoxes >= 0
           ? parsed.unopenedBoxes
           : base.unopenedBoxes,
     };
+
+    // Use saved ID/EGO goals to override targets where applicable
+    recomputeAllTargetsFromGoals(merged);
 
     return merged;
   } catch (err) {
@@ -94,7 +208,26 @@ function saveState(state) {
 
 let state = loadState();
 
-// ----- DOM refs -----
+function getIdEgoItemState(sinnerId, itemId) {
+  if (!state.idEgoState) {
+    state.idEgoState = createEmptyIdEgoState();
+  }
+  if (!state.idEgoState[sinnerId]) {
+    state.idEgoState[sinnerId] = {};
+  }
+  if (!state.idEgoState[sinnerId][itemId]) {
+    state.idEgoState[sinnerId][itemId] = {
+      owned: false,
+      goal: false,
+      enabled: true,
+    };
+  }
+  return state.idEgoState[sinnerId][itemId];
+}
+
+// ---------------------------------------------------------
+// DOM refs
+// ---------------------------------------------------------
 
 const currentEl = document.getElementById("current-shards");
 const targetEl = document.getElementById("target-shards");
@@ -105,7 +238,9 @@ const boxesNeededTopEl = document.getElementById("boxes-needed-avg-top");
 
 const avgPerRunEl = document.getElementById("avg-per-run");
 const runsLeftTheoEl = document.getElementById("runs-left-theoretical");
-const runsLeftTheoCeilEl = document.getElementById("runs-left-theoretical-ceil");
+const runsLeftTheoCeilEl = document.getElementById(
+  "runs-left-theoretical-ceil"
+);
 const actualAvgEl = document.getElementById("actual-avg-per-run");
 const runsLeftActualEl = document.getElementById("runs-left-actual");
 const modulesNeededEl = document.getElementById("modules-needed");
@@ -121,12 +256,24 @@ const bonusInput = document.getElementById("bonus-shards");
 const bonusErrorEl = document.getElementById("bonus-error");
 
 const activeSinnerSelect = document.getElementById("active-sinner");
+const activeSinnerLabelEl = document.getElementById("active-sinner-label");
 
 const sinnerShardsForm = document.getElementById("sinner-shards-form");
 const sinnerShardsGrid = document.getElementById("sinner-shards-grid");
 const sinnerShardsErrorEl = document.getElementById("sinner-shards-error");
 
 const overviewGrid = document.getElementById("overview-grid");
+const activeSinnerGoalItemsEl = document.getElementById(
+  "active-sinner-goal-items"
+);
+const unopenedBoxesDisplayEl = document.getElementById(
+  "unopened-boxes-display"
+);
+
+// ID/EGO planner search UI
+const idEgoPlannerRoot = document.getElementById("id-ego-planner-root");
+const idEgoSearchInput = document.getElementById("id-ego-search-input");
+const idEgoSearchErrorEl = document.getElementById("id-ego-search-error");
 
 // Unopened boxes card
 const boxesForm = document.getElementById("boxes-form");
@@ -134,12 +281,255 @@ const boxesInput = document.getElementById("unopened-boxes-input");
 const boxesErrorEl = document.getElementById("boxes-error");
 const boxesExpectedEl = document.getElementById("boxes-expected-shards");
 
-// Maps of Sinner name -> input element
+// Maps of Sinner name -> input element (for shard overrides)
 const sinnerShardsInputs = new Map();
-const sinnerGoal000Inputs = new Map();
-const sinnerGoal00Inputs = new Map();
 
-// ----- UI builders -----
+// ---------------------------------------------------------
+// ID/EGO planner UI & active progress
+// ---------------------------------------------------------
+
+// Top block under "Tracked IDs & EGOs for ..."
+function renderActiveSinnerGoals() {
+  if (!activeSinnerLabelEl || !activeSinnerGoalItemsEl) return;
+
+  activeSinnerLabelEl.textContent = state.activeSinner || "";
+
+  const sinnerId = sinnerSlugByName[state.activeSinner];
+  activeSinnerGoalItemsEl.innerHTML = "";
+
+  if (!sinnerId) return;
+
+  const items = [
+    ...(sinnerIdentities[sinnerId] || []),
+    ...(sinnerEgos[sinnerId] || []),
+  ];
+
+  const goals = items.filter((item) => {
+    const itemState = state.idEgoState?.[sinnerId]?.[item.id];
+    return itemState && itemState.goal;
+  });
+
+  if (!goals.length) {
+    const empty = document.createElement("p");
+    empty.className = "note";
+    empty.textContent =
+      "No specific IDs/EGOs selected for this Sinner yet.";
+    activeSinnerGoalItemsEl.appendChild(empty);
+    return;
+  }
+
+  goals.forEach((item) => {
+    const itemState = state.idEgoState?.[sinnerId]?.[item.id] || {};
+    const enabled = itemState.enabled !== false;
+
+    const row = document.createElement("div");
+    row.className = "goal-item-row";
+
+    const left = document.createElement("div");
+    left.className = "goal-item-main";
+
+    const img = document.createElement("img");
+    img.src = item.img;
+    img.alt = item.name;
+    img.className = "goal-item-image";
+
+    const textWrap = document.createElement("div");
+    textWrap.className = "goal-item-text";
+
+    const nameEl = document.createElement("div");
+    nameEl.className = "goal-item-name";
+    nameEl.textContent = item.name;
+
+    const metaEl = document.createElement("div");
+    metaEl.className = "goal-item-meta";
+    const rarityLabel =
+      item.rarity === "base"
+        ? "Base ID (0 shards)"
+        : `${item.rarity} · ${getShardCostForItem(item)} shards`;
+    metaEl.textContent = rarityLabel;
+
+    textWrap.appendChild(nameEl);
+    textWrap.appendChild(metaEl);
+    left.appendChild(img);
+    left.appendChild(textWrap);
+
+    const right = document.createElement("label");
+    right.className = "goal-item-toggle";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = enabled;
+
+    const span = document.createElement("span");
+    span.textContent = "Include";
+
+    right.appendChild(checkbox);
+    right.appendChild(span);
+
+    checkbox.addEventListener("change", () => {
+      const s = getIdEgoItemState(sinnerId, item.id);
+      s.enabled = checkbox.checked;
+      recomputeAllTargetsFromGoals(state);
+      saveState(state);
+      render();
+    });
+
+    row.appendChild(left);
+    row.appendChild(right);
+
+    activeSinnerGoalItemsEl.appendChild(row);
+  });
+}
+
+// Single planner row inside <details> per Sinner
+function buildPlannerItemRow(sinnerId, item, isEgo = false) {
+  const itemState = getIdEgoItemState(sinnerId, item.id);
+
+  const row = document.createElement("div");
+  row.className = "planner-item-row";
+  // Data for the search feature
+  row.dataset.entryId = item.id;
+  row.dataset.entryName = (item.name || "").toLowerCase();
+  row.id = `planner-entry-${item.id}`;
+
+  const left = document.createElement("div");
+  left.className = "planner-item-main";
+
+  const img = document.createElement("img");
+  img.src = item.img;
+  img.alt = item.name;
+  img.className = "planner-item-image";
+
+  const textWrap = document.createElement("div");
+  textWrap.className = "planner-item-text";
+
+  const nameEl = document.createElement("div");
+  nameEl.className = "planner-item-name";
+  nameEl.textContent = item.name;
+
+  const metaEl = document.createElement("div");
+  metaEl.className = "planner-item-meta";
+
+  const rarityLabel =
+    item.rarity === "base"
+      ? "Base ID"
+      : `${item.rarity}${isEgo ? " EGO" : " ID"} · ${getShardCostForItem(
+          item
+        )} shards`;
+
+  metaEl.textContent = rarityLabel;
+
+  textWrap.appendChild(nameEl);
+  textWrap.appendChild(metaEl);
+
+  left.appendChild(img);
+  left.appendChild(textWrap);
+
+  const right = document.createElement("div");
+  right.className = "planner-item-controls";
+
+  // Owned checkbox
+  const ownLabel = document.createElement("label");
+  ownLabel.className = "checkbox-inline";
+
+  const ownInput = document.createElement("input");
+  ownInput.type = "checkbox";
+  ownInput.checked = !!itemState.owned;
+
+  ownInput.addEventListener("change", () => {
+    const s = getIdEgoItemState(sinnerId, item.id);
+    s.owned = ownInput.checked;
+    saveState(state);
+  });
+
+  ownLabel.appendChild(ownInput);
+  ownLabel.appendChild(document.createTextNode("Own"));
+
+  // Goal checkbox
+  const goalLabel = document.createElement("label");
+  goalLabel.className = "checkbox-inline";
+
+  const goalInput = document.createElement("input");
+  goalInput.type = "checkbox";
+  goalInput.checked = !!itemState.goal;
+
+  goalInput.addEventListener("change", () => {
+    const s = getIdEgoItemState(sinnerId, item.id);
+    s.goal = goalInput.checked;
+
+    // If it just became a goal, default to enabled
+    if (goalInput.checked && s.enabled === undefined) {
+      s.enabled = true;
+    }
+
+    recomputeAllTargetsFromGoals(state);
+    saveState(state);
+    render();
+  });
+
+  goalLabel.appendChild(goalInput);
+  goalLabel.appendChild(document.createTextNode("Goal"));
+
+  right.appendChild(ownLabel);
+  right.appendChild(goalLabel);
+
+  row.appendChild(left);
+  row.appendChild(right);
+
+  return row;
+}
+
+// Whole planner accordion in the "ID & EGO Planner" section
+// Whole planner accordion in the "ID & EGO Planner" section
+function buildIdEgoPlanner() {
+  if (!idEgoPlannerRoot) return;
+
+  idEgoPlannerRoot.innerHTML = "";
+
+  sinners.forEach(({ id: sinnerId, name }) => {
+    const details = document.createElement("details");
+    details.className = "planner-sinner-panel";
+    details.dataset.sinnerId = sinnerId;
+
+    const summary = document.createElement("summary");
+    summary.className = "planner-sinner-summary";
+    summary.textContent = name;
+
+    details.appendChild(summary);
+
+    const body = document.createElement("div");
+    body.className = "planner-sinner-body";
+
+    const idList = sinnerIdentities[sinnerId] || [];
+    if (idList.length) {
+      const heading = document.createElement("h4");
+      heading.textContent = "Identities";
+      body.appendChild(heading);
+
+      idList.forEach((item) => {
+        body.appendChild(buildPlannerItemRow(sinnerId, item, false));
+      });
+    }
+
+    const egoList = sinnerEgos[sinnerId] || [];
+    if (egoList.length) {
+      const heading = document.createElement("h4");
+      heading.textContent = "EGOs";
+      body.appendChild(heading);
+
+      egoList.forEach((item) => {
+        body.appendChild(buildPlannerItemRow(sinnerId, item, true));
+      });
+    }
+
+    details.appendChild(body);
+    idEgoPlannerRoot.appendChild(details);
+  });
+}
+
+// ---------------------------------------------------------
+// Other UI builders
+// ---------------------------------------------------------
 
 function initSinnerSelect() {
   if (!activeSinnerSelect) return;
@@ -158,8 +548,6 @@ function buildSinnerShardsUI() {
 
   sinnerShardsGrid.innerHTML = "";
   sinnerShardsInputs.clear();
-  sinnerGoal000Inputs.clear();
-  sinnerGoal00Inputs.clear();
 
   sinnerNames.forEach((name) => {
     const wrapper = document.createElement("div");
@@ -171,9 +559,6 @@ function buildSinnerShardsUI() {
 
     const row = document.createElement("div");
     row.className = "sinner-row";
-
-    const goals =
-      (state.sinnerGoals && state.sinnerGoals[name]) || { count000: 1, count00: 0 };
 
     // Shards field
     const shardField = document.createElement("div");
@@ -197,51 +582,13 @@ function buildSinnerShardsUI() {
     shardField.appendChild(shardSubLabel);
     shardField.appendChild(shardInput);
 
-    // 000 IDs / EGOs field
-    const goal000Field = document.createElement("div");
-    goal000Field.className = "sinner-field";
-
-    const goal000SubLabel = document.createElement("span");
-    goal000SubLabel.className = "sub-label";
-    goal000SubLabel.textContent = "000 IDs / EGOs";
-
-    const goal000Input = document.createElement("input");
-    goal000Input.type = "number";
-    goal000Input.min = "0";
-    goal000Input.step = "1";
-    goal000Input.value = goals.count000 ?? 0;
-
-    goal000Field.appendChild(goal000SubLabel);
-    goal000Field.appendChild(goal000Input);
-
-    // 00 IDs field
-    const goal00Field = document.createElement("div");
-    goal00Field.className = "sinner-field";
-
-    const goal00SubLabel = document.createElement("span");
-    goal00SubLabel.className = "sub-label";
-    goal00SubLabel.textContent = "00 IDs";
-
-    const goal00Input = document.createElement("input");
-    goal00Input.type = "number";
-    goal00Input.min = "0";
-    goal00Input.step = "1";
-    goal00Input.value = goals.count00 ?? 0;
-
-    goal00Field.appendChild(goal00SubLabel);
-    goal00Field.appendChild(goal00Input);
-
     row.appendChild(shardField);
-    row.appendChild(goal000Field);
-    row.appendChild(goal00Field);
 
     wrapper.appendChild(label);
     wrapper.appendChild(row);
     sinnerShardsGrid.appendChild(wrapper);
 
     sinnerShardsInputs.set(name, shardInput);
-    sinnerGoal000Inputs.set(name, goal000Input);
-    sinnerGoal00Inputs.set(name, goal00Input);
   });
 }
 
@@ -304,7 +651,76 @@ function buildOverviewGrid() {
   });
 }
 
-// ----- Render -----
+// ---------------------------------------------------------
+// ID/EGO planner search
+// ---------------------------------------------------------
+
+function handleIdEgoSearch() {
+  if (!idEgoSearchInput || !idEgoPlannerRoot) return;
+
+  const queryRaw = idEgoSearchInput.value.trim();
+  const query = queryRaw.toLowerCase();
+
+  if (!query) {
+    if (idEgoSearchErrorEl) {
+      idEgoSearchErrorEl.textContent =
+        "Type part of an ID or EGO name to search.";
+    }
+    return;
+  }
+
+  const allEntries = idEgoPlannerRoot.querySelectorAll(".planner-item-row");
+  let bestMatch = null;
+
+  allEntries.forEach((entry) => {
+    if (bestMatch) return;
+    const name = entry.dataset.entryName || "";
+    if (name.includes(query)) {
+      bestMatch = entry;
+    }
+  });
+
+  if (!bestMatch) {
+    if (idEgoSearchErrorEl) {
+      idEgoSearchErrorEl.textContent =
+        "No ID or EGO found with that name.";
+    }
+    return;
+  }
+
+  if (idEgoSearchErrorEl) {
+    idEgoSearchErrorEl.textContent = "";
+  }
+
+  // Ensure the containing Sinner <details> is open
+  const detailsEl = bestMatch.closest("details");
+  if (detailsEl && !detailsEl.open) {
+    detailsEl.open = true;
+  }
+
+  // Scroll the entry into view
+  bestMatch.scrollIntoView({ behavior: "smooth", block: "center" });
+
+  // Brief highlight
+  bestMatch.classList.add("planner-entry-highlight");
+  setTimeout(() => {
+    bestMatch.classList.remove("planner-entry-highlight");
+  }, 1200);
+}
+
+// Trigger search when pressing Enter in the search box
+if (idEgoSearchInput) {
+  idEgoSearchInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      handleIdEgoSearch();
+    }
+  });
+}
+
+// ---------------------------------------------------------
+// Render
+// ---------------------------------------------------------
 
 function render() {
   // Ensure active Sinner is valid
@@ -316,15 +732,22 @@ function render() {
     activeSinnerSelect.value = state.activeSinner;
   }
 
+  // Update tracked ID/EGO list for the active Sinner
+  renderActiveSinnerGoals();
+  if (activeSinnerLabelEl) {
+    activeSinnerLabelEl.textContent = state.activeSinner;
+  }
+
   const currentForActive =
     (state.sinnerShards && state.sinnerShards[state.activeSinner]) || 0;
   const currentTarget =
-    (state.sinnerTargets && state.sinnerTargets[state.activeSinner]) ||
-    defaultTargetShards;
+    (state.sinnerTargets && state.sinnerTargets[state.activeSinner]) != null
+      ? state.sinnerTargets[state.activeSinner]
+      : defaultTargetShards;
 
   const remaining = Math.max(currentTarget - currentForActive, 0);
 
-    // Boxes needed (avg) for selected Sinner (ignores stash)
+  // Boxes needed (avg) for selected Sinner (ignores stash)
   let boxesNeededTop = 0;
   if (remaining > 0) {
     boxesNeededTop = remaining / avgShardsPerBox; // avg 2 shards per box
@@ -339,11 +762,9 @@ function render() {
   if (runsCompletedEl) runsCompletedEl.textContent = state.runsCompleted;
   if (bonusTotalEl) bonusTotalEl.textContent = state.bonusShardsTotal || 0;
 
-  // Sync per-Sinner inputs
+  // Sync per-Sinner shard inputs
   sinnerNames.forEach((name) => {
     const shardInput = sinnerShardsInputs.get(name);
-    const goal000Input = sinnerGoal000Inputs.get(name);
-    const goal00Input = sinnerGoal00Inputs.get(name);
 
     if (shardInput) {
       const val =
@@ -352,17 +773,6 @@ function render() {
           : 0;
       shardInput.value = val;
     }
-
-    const goals =
-      (state.sinnerGoals && state.sinnerGoals[name]) || { count000: 1, count00: 0 };
-
-    if (goal000Input) {
-      goal000Input.value = goals.count000 ?? 0;
-    }
-
-    if (goal00Input) {
-      goal00Input.value = goals.count00 ?? 0;
-    }
   });
 
   // Theoretical projection (18 shards/run)
@@ -370,7 +780,7 @@ function render() {
     avgPerRunEl.textContent = expectedShardsPerRun.toFixed(1);
   }
 
-    if (remaining === 0) {
+  if (remaining === 0) {
     if (runsLeftTheoEl) runsLeftTheoEl.textContent = "0 (target reached)";
     if (runsLeftTheoCeilEl) runsLeftTheoCeilEl.textContent = "0";
     if (modulesNeededEl) modulesNeededEl.textContent = "0";
@@ -429,12 +839,17 @@ function render() {
   if (boxesExpectedEl) {
     boxesExpectedEl.textContent = (boxesVal * avgShardsPerBox).toFixed(0);
   }
+  if (unopenedBoxesDisplayEl) {
+    unopenedBoxesDisplayEl.textContent = boxesVal.toString();
+  }
 
   // Overview per Sinner
   buildOverviewGrid();
 }
 
-// ----- Event handlers -----
+// ---------------------------------------------------------
+// Event handlers
+// ---------------------------------------------------------
 
 // Run form
 if (form) {
@@ -512,29 +927,20 @@ if (bonusForm) {
   });
 }
 
-// Per-Sinner shard + goal editor
+// Per-Sinner shard editor
 if (sinnerShardsForm) {
   sinnerShardsForm.addEventListener("submit", (event) => {
     event.preventDefault();
     if (sinnerShardsErrorEl) sinnerShardsErrorEl.textContent = "";
 
     const updatedShards = {};
-    const updatedGoals = {};
-    const updatedTargets = {};
 
     for (const name of sinnerNames) {
       const shardInput = sinnerShardsInputs.get(name);
-      const goal000Input = sinnerGoal000Inputs.get(name);
-      const goal00Input = sinnerGoal00Inputs.get(name);
-      if (!shardInput || !goal000Input || !goal00Input) continue;
+      if (!shardInput) continue;
 
       const shardRaw = shardInput.value.trim();
-      const goal000Raw = goal000Input.value.trim();
-      const goal00Raw = goal00Input.value.trim();
-
       const shardNum = shardRaw === "" ? 0 : Number(shardRaw);
-      const goal000Num = goal000Raw === "" ? 0 : Number(goal000Raw);
-      const goal00Num = goal00Raw === "" ? 0 : Number(goal00Raw);
 
       if (!Number.isFinite(shardNum) || shardNum < 0) {
         if (sinnerShardsErrorEl) {
@@ -544,44 +950,13 @@ if (sinnerShardsForm) {
         return;
       }
 
-      if (!Number.isFinite(goal000Num) || goal000Num < 0) {
-        if (sinnerShardsErrorEl) {
-          sinnerShardsErrorEl.textContent =
-            `Invalid 000 ID/EGO count for ${name}.`;
-        }
-        return;
-      }
-
-      if (!Number.isFinite(goal00Num) || goal00Num < 0) {
-        if (sinnerShardsErrorEl) {
-          sinnerShardsErrorEl.textContent =
-            `Invalid 00 ID count for ${name}.`;
-        }
-        return;
-      }
-
       const shardsInt = Math.floor(shardNum);
-      const g000Int = Math.floor(goal000Num);
-      const g00Int = Math.floor(goal00Num);
-
       updatedShards[name] = shardsInt;
-      updatedGoals[name] = { count000: g000Int, count00: g00Int };
-      updatedTargets[name] = g000Int * costPer000 + g00Int * costPer00;
     }
 
     state.sinnerShards = {
       ...state.sinnerShards,
       ...updatedShards,
-    };
-
-    state.sinnerGoals = {
-      ...state.sinnerGoals,
-      ...updatedGoals,
-    };
-
-    state.sinnerTargets = {
-      ...state.sinnerTargets,
-      ...updatedTargets,
     };
 
     saveState(state);
@@ -638,7 +1013,11 @@ if (resetButton) {
   });
 }
 
-// ----- Initial setup -----
+// ---------------------------------------------------------
+// Initial setup
+// ---------------------------------------------------------
+
 initSinnerSelect();
 buildSinnerShardsUI();
+buildIdEgoPlanner();
 render();
