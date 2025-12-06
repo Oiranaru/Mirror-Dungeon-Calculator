@@ -14,6 +14,7 @@ import {
   sinnerEgos,
   shardCostByRarity,
   defaultActiveSinner,
+  sinnerNameBySlug,
 } from "./data.js";
 
 const STORAGE_KEY = "mdShardCalculatorState_v1";
@@ -68,38 +69,45 @@ function getShardCostForItem(item) {
 }
 
 // Recompute sinnerTargets based on all goal items that are currently enabled
-function recomputeAllTargetsFromGoals(currentState) {
+function recomputeTargetForSinnerFromGoals(currentState, sinnerName) {
   if (!currentState.idEgoState) return;
 
-  sinnerNames.forEach((name) => {
-    const sinnerId = sinnerSlugByName[name];
-    if (!sinnerId) return;
+  const sinnerId = sinnerSlugByName[sinnerName];
+  if (!sinnerId) return;
 
-    const items = [
-      ...(sinnerIdentities[sinnerId] || []),
-      ...(sinnerEgos[sinnerId] || []),
-    ];
+  const items = [
+    ...(sinnerIdentities[sinnerId] || []),
+    ...(sinnerEgos[sinnerId] || []),
+  ];
 
-    let anyGoals = false;
-    let totalFromGoals = 0;
+  let totalFromGoals = 0;
 
-    items.forEach((item) => {
-      const itemState = currentState.idEgoState?.[sinnerId]?.[item.id];
-      if (!itemState || !itemState.goal) return;
+  items.forEach((item) => {
+    const itemState = currentState.idEgoState?.[sinnerId]?.[item.id];
+    if (!itemState || !itemState.goal) return;
 
-      anyGoals = true;
-      const enabled =
-        itemState.enabled === undefined ? true : itemState.enabled;
-      if (!enabled) return;
+    const enabled =
+      itemState.enabled === undefined ? true : itemState.enabled;
+    if (!enabled) return;
 
-      totalFromGoals += getShardCostForItem(item);
-    });
-
-    // If there are goal items for this Sinner, override the manual target
-    if (anyGoals) {
-      currentState.sinnerTargets[name] = totalFromGoals;
-    }
+    totalFromGoals += getShardCostForItem(item);
   });
+
+  // Always set this sinner’s target to the sum of enabled goals (0 if none)
+  currentState.sinnerTargets[sinnerName] = totalFromGoals;
+}
+
+function recomputeAllTargetsFromGoals(currentState) {
+  sinnerNames.forEach((name) =>
+    recomputeTargetForSinnerFromGoals(currentState, name)
+  );
+}
+
+function hasAnySavedGoals(savedIdEgoState) {
+  if (!savedIdEgoState) return false;
+  return Object.values(savedIdEgoState).some((items) =>
+    items && Object.values(items).some((st) => st && st.goal)
+  );
 }
 
 // ----- Helpers for Sinner + item data -----
@@ -188,8 +196,10 @@ function loadState() {
           : base.unopenedBoxes,
     };
 
-    // Use saved ID/EGO goals to override targets where applicable
-    recomputeAllTargetsFromGoals(merged);
+       // Use saved ID/EGO goals to override targets where applicable
+    if (hasAnySavedGoals(parsed.idEgoState)) {
+      recomputeAllTargetsFromGoals(merged);
+    }
 
     return merged;
   } catch (err) {
@@ -353,8 +363,12 @@ function renderActiveSinnerGoals() {
     left.appendChild(img);
     left.appendChild(textWrap);
 
-    const right = document.createElement("label");
-    right.className = "goal-item-toggle";
+        const right = document.createElement("div");
+    right.className = "goal-item-controls";
+
+    // --- Include toggle ---
+    const includeLabel = document.createElement("label");
+    includeLabel.className = "goal-item-toggle";
 
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
@@ -363,16 +377,65 @@ function renderActiveSinnerGoals() {
     const span = document.createElement("span");
     span.textContent = "Include";
 
-    right.appendChild(checkbox);
-    right.appendChild(span);
+    includeLabel.appendChild(checkbox);
+    includeLabel.appendChild(span);
 
     checkbox.addEventListener("change", () => {
       const s = getIdEgoItemState(sinnerId, item.id);
       s.enabled = checkbox.checked;
-      recomputeAllTargetsFromGoals(state);
+
+      const sinnerName = state.activeSinner;
+      recomputeTargetForSinnerFromGoals(state, sinnerName);
+
       saveState(state);
       render();
     });
+
+    // --- Got it button ---
+    const gotButton = document.createElement("button");
+    gotButton.type = "button";
+    gotButton.className = "goal-item-got-button";
+    gotButton.textContent = "Got it";
+
+    gotButton.addEventListener("click", () => {
+      const sinnerName = state.activeSinner;
+      const cost = getShardCostForItem(item);
+
+      const sure = confirm(
+        `Mark "${item.name}" as obtained for ${sinnerName}? ` +
+        `This will mark it as Owned, remove it from your goals, and subtract ${cost} shards ` +
+        `from ${sinnerName}'s shard total.`
+      );
+      if (!sure) return;
+
+      // 1) Update ID/EGO ownership/goal state
+      const s = getIdEgoItemState(sinnerId, item.id);
+      s.owned = true;
+      s.goal = false;
+      s.enabled = true;
+
+      // 2) Subtract shards for this Sinner (clamp at 0)
+      const current = state.sinnerShards[sinnerName] || 0;
+      state.sinnerShards[sinnerName] = Math.max(0, current - cost);
+
+      // 3) Recompute target from remaining goals for this Sinner
+      recomputeTargetForSinnerFromGoals(state, sinnerName);
+
+      // 4) Sync the planner checkboxes for this entry (Own ON, Goal OFF)
+      const plannerRow = document.getElementById(`planner-entry-${item.id}`);
+      if (plannerRow) {
+        const ownCb = plannerRow.querySelector('input[data-role="own"]');
+        const goalCb = plannerRow.querySelector('input[data-role="goal"]');
+        if (ownCb) ownCb.checked = true;
+        if (goalCb) goalCb.checked = false;
+      }
+
+      saveState(state);
+      render(); // removes it from the tracked list
+    });
+
+    right.appendChild(includeLabel);
+    right.appendChild(gotButton);
 
     row.appendChild(left);
     row.appendChild(right);
@@ -435,6 +498,7 @@ function buildPlannerItemRow(sinnerId, item, isEgo = false) {
   const ownInput = document.createElement("input");
   ownInput.type = "checkbox";
   ownInput.checked = !!itemState.owned;
+  ownInput.dataset.role = "own";
 
   ownInput.addEventListener("change", () => {
     const s = getIdEgoItemState(sinnerId, item.id);
@@ -452,8 +516,9 @@ function buildPlannerItemRow(sinnerId, item, isEgo = false) {
   const goalInput = document.createElement("input");
   goalInput.type = "checkbox";
   goalInput.checked = !!itemState.goal;
+  goalInput.dataset.role = "goal";
 
-  goalInput.addEventListener("change", () => {
+    goalInput.addEventListener("change", () => {
     const s = getIdEgoItemState(sinnerId, item.id);
     s.goal = goalInput.checked;
 
@@ -462,7 +527,9 @@ function buildPlannerItemRow(sinnerId, item, isEgo = false) {
       s.enabled = true;
     }
 
-    recomputeAllTargetsFromGoals(state);
+    const sinnerName = sinnerNameBySlug[sinnerId] || state.activeSinner;
+    recomputeTargetForSinnerFromGoals(state, sinnerName);
+
     saveState(state);
     render();
   });

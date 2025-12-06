@@ -451,6 +451,29 @@ details > *:not(summary) {
   font-size: 0.8rem;
   color: #9ca3af;
 }
+
+.goal-item-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.6rem;              /* more separation between Include & Got it */
+}
+
+.goal-item-got-button {
+  padding: 0.25rem 0.6rem;
+  border-radius: 0.5rem;
+  border: 1px solid #22c55e;
+  background: transparent;
+  color: #bbf7d0;
+  font-size: 0.8rem;
+  cursor: pointer;
+  margin-top: 0.1rem;       /* tiny extra buffer from the Include label */
+}
+
+.goal-item-got-button:hover {
+  filter: brightness(1.1);
+}
+
 /* Extra spacing between ID/EGO planner rows so
    Own/Goal clearly belong to the image above */
 
